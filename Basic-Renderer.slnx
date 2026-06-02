@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="../../../../../../../../Dev/Basic-Renderer/Basic-Renderer/Basic-Renderer.vcxproj" Id="be0d3635-9b43-4d61-ab61-377771bacbfc" />
+  <Project Path="Basic-Renderer/Basic-Renderer.vcxproj" Id="be0d3635-9b43-4d61-ab61-377771bacbfc" />
 </Solution>
