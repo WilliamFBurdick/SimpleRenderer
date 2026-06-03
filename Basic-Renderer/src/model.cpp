@@ -17,6 +17,12 @@ Model::Model(const std::string filename) {
             for (int i : {0, 1, 2}) iss >> v[i];
             verts.push_back(v);
         }
+        else if (!line.compare(0, 3, "vn ")) {
+            iss >> trash >> trash;
+            vec3 n;
+            for (int i : {0, 1, 2}) iss >> n[i];
+            norms.push_back(normalized(n));
+        }
         else if (!line.compare(0, 2, "f ")) {
             int f, t, n, cnt = 0;
             iss >> trash;
@@ -47,4 +53,8 @@ vec3 Model::vert(const int i) const {
 
 vec3 Model::vert(const int iface, const int nthvert) const {
     return verts[facet_vrt[iface * 3 + nthvert]];
+}
+
+vec3 Model::normal(const int iface, const int nthvert) const {
+    return norms[facet_vrt[iface * 3 + nthvert]];
 }
