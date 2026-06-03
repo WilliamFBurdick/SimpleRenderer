@@ -15,7 +15,7 @@ struct RandomShader : IShader {
 	}
 
 	virtual vec4 vertex(const int face, const int vert) {
-		vec3 v = model.vert(face, vert);
+		vec4 v = model.vert(face, vert);
 		vec4 gl_Position = ModelView * vec4{ v.x, v.y, v.z, 1.0 };
 		tri[vert] = gl_Position.xyz();
 		return Perspective * gl_Position;
@@ -28,31 +28,27 @@ struct RandomShader : IShader {
 
 struct PhongShader : IShader {
 	const Model& model;
-	vec3 l;
-	vec3 tri[3];
-	vec3 varying_nrm[3];
+	vec4 l;
+	vec2 varying_uv[3];
 
 	PhongShader(const vec3 light, const Model& m) : model(m) {
-		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0.0 }).xyz());
+		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0.0 }));
 	}
 
 	virtual vec4 vertex(const int face, const int vert) {
-		vec3 v = model.vert(face, vert);
-		vec3 n = model.normal(face, vert);
-		varying_nrm[vert] = (ModelView.invert_transpose() * vec4 { n.x, n.y, n.z, 0.0 }).xyz();
-		vec4 gl_Position = ModelView * vec4{ v.x, v.y, v.z, 1.0 };
-		tri[vert] = gl_Position.xyz();
+		varying_uv[vert] = model.uv(face, vert);
+		vec4 gl_Position = ModelView * model.vert(face, vert);
+
 		return Perspective * gl_Position;
 	}
 
 	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
 		TGAColor gl_FragColor = { 255, 255, 255, 255 };
-		vec3 n = normalized(
-			varying_nrm[0] * bar[0]
-			+ varying_nrm[1] * bar[1]
-			+ varying_nrm[2] * bar[2]
-		);
-		vec3 r = normalized(n * (n * l) * 2 - l);
+		vec2 uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1] + varying_uv[2] * bar[2];
+		vec4 n = normalized(ModelView.invert_transpose() * model.normal(uv));
+		vec4 r = normalized(n * (n * l) * 2 - l);
+
+		gl_FragColor = model.diffuse(uv);
 		double ambient = 0.3;
 		double diff = std::max(0.0, n * l);
 		double spec = std::pow(std::max(r.z, 0.0), 35);
