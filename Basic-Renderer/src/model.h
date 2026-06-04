@@ -12,6 +12,7 @@ class Model {
 	std::vector<int> facet_tex = {};
 	TGAImage normalmap = {};
 	TGAImage diffusemap = {};
+	TGAImage specularmap = {};
 public:
 	Model(const std::string filename);
 	int nverts() const;
@@ -20,6 +21,7 @@ public:
 	vec4 vert(const int iface, const int nthvert) const;
 	vec4 normal(const int iface, const int nthvert) const;
 	vec4 normal(const vec2& uv) const;
-	TGAColor diffuse(const vec2& uv) const;
 	vec2 uv(const int iface, const int nthvert) const;
+	TGAImage diffuse() const;
+	TGAImage specular() const;
 };

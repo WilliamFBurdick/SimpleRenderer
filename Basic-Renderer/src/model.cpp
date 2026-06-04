@@ -53,6 +53,7 @@ Model::Model(const std::string filename) {
         };
     load_texture("_nm_tangent.tga", normalmap);
     load_texture("_diffuse.tga", diffusemap);
+    load_texture("_spec.tga", specularmap);
 }
 
 int Model::nverts() const {
@@ -80,11 +81,14 @@ vec4 Model::normal(const vec2& uv) const {
     return normalized(vec4{ (double)c[2],(double)c[1], (double)c[0], 0 } *2.0 / 255.0 - vec4{ 1, 1, 1, 0 });
 }
 
-TGAColor Model::diffuse(const vec2& uv) const {
-    TGAColor c = diffusemap.get(uv[0] * diffusemap.width(), uv[1] * diffusemap.height());
-    return TGAColor{ c[0], c[1], c[2], static_cast<unsigned char>(255.0) };
-}
-
 vec2 Model::uv(const int iface, const int nthvert) const {
     return tex[facet_tex[iface * 3 + nthvert]];
+}
+
+TGAImage Model::diffuse() const {
+    return diffusemap;
+}
+
+TGAImage Model::specular() const {
+    return specularmap;
 }
