@@ -1,3 +1,8 @@
+#define _USE_MATH_DEFINES
+#include <random>
+#include <algorithm>
+#include <cmath>
+
 #include <cstdlib>
 #include "our_gl.h"
 #include "model.h"
@@ -123,73 +128,38 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	framebuffer.write_tga_file("framebuffer.tga");
-	drop_zbuffer("zbuffer1.tga", zbuffer, width, height);
-
-	std::vector<bool> mask(width * height, false);
-	std::vector<double> zbuffer_copy = zbuffer;
-	mat<4, 4> M = (Viewport * Perspective * ModelView).invert();
-
-	{
-		// Shadow rendering pass
-		lookat(light, center, up);
-		init_perspective(norm(eye - center));
-		init_viewport(shadoww / 16, shadowh / 16, shadoww * 7 / 8, shadowh * 7 / 8);
-		init_zbuffer(shadoww, shadowh);
-		TGAImage trash(shadoww, shadowh, TGAImage::RGB, { 177, 195, 209, 255 });
-
-		for (int m = 1; m < argc; m++) {
-			Model model(argv[m]);
-			BlankShader shader{ model };
-			for (int f = 0; f < model.nfaces(); f++) {
-				Triangle clip = {
-					shader.vertex(f, 0),
-					shader.vertex(f, 1),
-					shader.vertex(f, 2)
-				};
-				rasterize(clip, shader, trash);
+	constexpr double ao_radius = 0.1;
+	constexpr int nsamples = 128;
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_real_distribution<double> dist(-ao_radius, ao_radius);
+	auto smoothstep = [](double edge0, double edge1, double x) {
+		double t = std::clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+		return t * t * (3 - 2 * t);
+	};
+	
+#pragma omp parallel for
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			double z = zbuffer[x + y * width];
+			if (z < -100) continue;
+			vec4 fragment = Viewport.invert() * vec4 { (double)x, (double)y, z, 1.0 };
+			double vote = 0;
+			double voters = 0;
+			for (int i = 0; i < nsamples; i++) {
+				vec4 p = Viewport * (fragment + vec4{ dist(gen), dist(gen), dist(gen), 0.0 });
+				if (p.x < 0 || p.x >= width || p.y < 0 || p.y >= height) continue;
+				double d = zbuffer[int(p.x) + int(p.y) * width];
+				if (z + 5 * ao_radius < d) continue;
+				voters++;
+				vote += d > p.z;
 			}
-		}
-		trash.write_tga_file("shadowmap.tga");
-	}
-	drop_zbuffer("zbuffer2.tga", zbuffer, shadoww, shadowh);
-
-	mat<4, 4> N = Viewport * Perspective * ModelView;
-
-	// Post-Processing pass
-	for (int x = 0; x < width; x++) {
-		for (int y = 0; y < height; y++) {
-			vec4 fragment = M * vec4{ (double)x, (double)y, zbuffer_copy[x + y * width], 1.0 };
-			vec4 q = N * fragment;
-			vec3 p = q.xyz() / q.w;
-			bool lit = (
-				fragment.z < -100
-				|| (p.x < 0 || p.x >= shadoww || p.y < 0 || p.y >= shadowh)
-				|| (p.z > zbuffer[int(p.x) + int(p.y) * shadoww] - 0.03)
-				);
-			mask[x + y * width] = lit;
-		}
-	}
-
-	TGAImage maskimg(width, height, TGAImage::GRAYSCALE);
-	for (int x = 0; x < width; x++) {
-		for (int y = 0; y < height; y++) {
-			if (mask[x + y * width]) continue;
-			maskimg.set(x, y, { 255, 255, 255, 255 });
-		}
-	}
-	maskimg.write_tga_file("mask.tga");
-
-	for (int x = 0; x < width; x++) {
-		for (int y = 0; y < height; y++) {
-			if (mask[x + y * width]) continue;
+			double ssao = smoothstep(0, 1, 1 - vote / voters * 0.4);
 			TGAColor c = framebuffer.get(x, y);
-			vec3 a = { c[0], c[1], c[2] };
-			if (norm(a) < 80) continue;
-			a = normalized(a) * 80;
-			framebuffer.set(x, y, { static_cast<unsigned char>(a[0]), static_cast<unsigned char>(a[1]), static_cast<unsigned char>(a[2]), 255 });
+			framebuffer.set(x, y, { static_cast<unsigned char>(c[0] * ssao), static_cast<unsigned char>(c[1] * ssao), static_cast<unsigned char>(c[2] * ssao), c[3] });
 		}
 	}
-	framebuffer.write_tga_file("shadow.tga");
+
+	framebuffer.write_tga_file("framebuffer.tga");
 	return 0;
 }
